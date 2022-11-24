@@ -145,3 +145,73 @@
 	(d) Because prop values cannot be stored in state
 	
 	Answer: (b)
+
+11)  Which of the following options will return 6?
+	function sumValues(x, y, z) {
+	  return x + y + z;
+	}
+	
+	options:
+	
+	(a) sumValues([...1, 2, 3])
+	(b) sumValues([...[1, 2, 3]])
+	(c) sumValues(...[1, 2, 3])
+	(d) sumValues([1, 2, 3])
+	
+	Answer: (c)
+	
+12) React separates the user interface into components. How are components combinded to create a user interface?
+	
+	options: 
+	
+	(a) With webpack 
+	(b) With code splitting
+	(c) By putting them in a folder structure
+	(d) By nesting components
+	
+	Answer: (d)
+	
+	
+13) What's the output?
+	[[0, 1], [2, 3]].reduce(
+	  (acc, cur) => {
+	    return acc.concat(cur);
+	  },
+	  [1, 2],
+	);
+	
+	options:
+	
+	(a) [0, 1, 2, 3, 1, 2]
+	(b) [6, 1, 2]
+	(c) [1, 2, 0, 1, 2, 3]
+	(d) [1, 2, 6]
+	
+	Answer: (c)
+	
+14) What's the output?
+	const person = { name: 'Lydia' };
+
+	Object.defineProperty(person, 'age', { value: 21 });
+
+	console.log(person);
+	console.log(Object.keys(person));
+	
+	(a) { name: "Lydia", age: 21 }, ["name", "age"]
+	(b) { name: "Lydia", age: 21 }, ["name"]
+	(c) { name: "Lydia"}, ["name", "age"]
+	(d) { name: "Lydia"}, ["age"]
+	
+	Answer: (b)
+	
+	
+15) How can you optimze performance for a function component that always renders the same way?
+
+	options:
+	
+	(a) Use the useMemo Hook. 
+	(b) Use the useReducer Hook.
+	(c) Use the shouldComponentUpdate lifecycle method.
+	(d) Wrap it in the React.memo higher-order component.  
+	
+	Answer: (d)
