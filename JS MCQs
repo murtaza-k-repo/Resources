@@ -16,8 +16,19 @@
 	
 	Answer: (c)
 	
+2) How are objects compared when they are checked with the strict equality operator?
+
+	options:
 	
-2) What will be the output of the following?
+	(a) The contents of the objects are compared
+	(b) Their references are compared
+	(c) Both A and B
+	(d)None of the above
+	
+	Answer: (b)
+	
+	
+3) What will be the output of the following?
 
 	(function(a){
 	 return (function(){
@@ -35,15 +46,102 @@
 	
 	Answer: (c)
 	
-3) How are objects compared when they are checked with the strict equality operator?
+	
+4) Choose the correct statement in the context of uncontrolled components in ReactJS?
 
 	options:
 	
-	(a) The contents of the objects are compared
-	(b) Their references are compared
-	(c) Both A and B
-	(d)None of the above
+	(a) source of truth can be anything
+	(b) source of truth is a component state
+	(c) source of truth is DOM
+	(d) none of the above
+	
+	Answer: (c)
+	
+5)  We can update the state in React.js by calling to setState() method. These calls are:
+
+	options:
+	
+	(a) Synchronous in nature.
+	(b) Asynchronous in nature.
+	(c) Are asynchronous but can be made synchronous when required.
+	(d) None of the above.
 	
 	Answer: (b)
 	
-4)
+6)  What's the value of output?
+	const one = false || {} || null;
+	const two = null || false || '';
+	const three = [] || 0 || true;
+
+	console.log(one, two, three);
+	
+	options:
+	
+	(a) false null []
+	(b) null "" true
+	(c) {} "" []
+	(d) null null true
+	
+	Answers: (c)
+	
+
+7) What's the value of output?
+	const myPromise = () => Promise.resolve('I have resolved!');
+
+	function firstFunction() {
+	  myPromise().then(res => console.log(res));
+	  console.log('second');
+	}
+
+	async function secondFunction() {
+	  console.log(await myPromise());
+	  console.log('second');
+	}
+
+	firstFunction();
+	secondFunction();
+	
+	options:
+	
+	(a) have resolved!, second and I have resolved!, second
+	(b) second, I have resolved! and second, I have resolved!
+	(c) I have resolved!, second and second, I have resolved!
+	(d) second, I have resolved! and I have resolved!, second
+	
+	Answer: (d)
+	
+
+8) Which of the following is true about code splitting ?
+
+	options:
+	
+	(a) React.memo
+	(b) React.split
+	(c) React.lazy
+	(d) React.fallback
+	
+	Answer: (c)
+	
+	
+9) Which of the following is NOT a rule for React Hooks?
+	
+	options: 
+	
+	(a) Hooks cannot be conditional 
+	(b) Hooks can only be called inside React Function components
+	(c) Hooks can only be called at the top level of a component
+	(d) Hooks can be called in Class or Function components  
+	
+	Answer: (d)
+	
+10) Why should you avoid copying the values of props into a component's state?
+
+	options:
+	
+	(a) Because you should never mutate state  
+	(b) Because that would create two instances of the same state that could become out of sync 
+	(c) Because you want to allow data to flow back up to the parent
+	(d) Because prop values cannot be stored in state
+	
+	Answer: (b)
