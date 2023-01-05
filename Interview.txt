@@ -1,0 +1,7 @@
+Create a select dropdown using following users API as such that by default it consist of 1 user selected with id and its data shown on the screen as follows:
+
+https://jsonplaceholder.typicode.com/users
+
+Name: ABC
+Username: XYZ
+Email: xyz123@gmail.com
