@@ -1,0 +1,106 @@
+  const [pickDates, setPickDates] = useState([]);
+
+  useEffect(() => {
+    let pickDates = [],
+      dropOffDates = [],
+      filteredDeliveryPickup;
+
+    let custAddress = JSON.parse(localStorage.getItem("custAddress"));
+
+    if (detailsData?.deliveryAndPickup?.length > 0) {
+
+      filteredDeliveryPickup = detailsData?.deliveryAndPickup?.filter(
+        (item) => item.status === 1
+      );
+
+      filteredDeliveryPickup.forEach((item) => {
+        if (item.zipcode !== "" && item.zipcode === custAddress.zipcode) {
+          setPickDates((prev) => [...prev, item]);
+        }
+      });
+    }
+  }, [detailsData]);
+
+  const filterDays = (date) => {
+    let resDays = [];
+    const day = moment(date).day();
+
+    pickDates.forEach((item) => {
+      let dayNum = moment().day(item.day).day();
+      if (!resDays.includes(dayNum)) {
+        resDays.push(dayNum);
+      }
+    });
+
+    return resDays.includes(day);
+  };
+
+  function timecalc() {
+    let today = new Date().getDay();
+    for (let i of pickDates) {
+      let req = moment().day(i.day).day();
+      if (req == today) return new Date();
+    }
+    let req = moment().day(pickDates[0].day).day();
+    if (req <= today) {
+      req += 7 - today;
+      let date = new Date();
+      date.setDate(date.getDate() + req);
+      return date;
+    } else {
+      req -= today;
+      let date = new Date();
+      date.setDate(date.getDate() + req);
+      return date;
+    }
+  }
+
+  useEffect(() => {
+    if (pickDates.length > 0) {
+      setPickDateValue(timecalc());
+    }
+  }, [pickDates]);
+
+  useEffect(() => {
+    if (pickDateValue) {
+      let processingTime = 0;
+      const cartItem = JSON.parse(localStorage.getItem("cartItem"));
+      cartItem?.forEach((item) => {
+        if (item?.productData?.processingTime >= processingTime) {
+          processingTime = item?.productData?.processingTime;
+        }
+      });
+
+      const date = new Date(pickDateValue);
+      date.setDate(date.getDate() + Number(processingTime));
+
+      let today = new Date(date).getDay();
+
+      let resDays = [];
+      pickDates.forEach((item) => {
+        let dayNum = moment().day(item.day).day();
+        if (!resDays.includes(dayNum)) {
+          resDays.push(dayNum);
+        }
+      });
+
+      let finalDate;
+      if (!resDays.includes(today)) {
+        let req = moment().day(pickDates[0].day).day();
+        if (req <= today) {
+          req += 7 - today;
+          let date1 = new Date(date);
+          date1.setDate(date1.getDate() + req);
+          finalDate = date1;
+        } else {
+          req -= today;
+          let date2 = new Date();
+          date2.setDate(date2.getDate() + req);
+          finalDate = date2;
+        }
+      } else {
+        finalDate = date;
+      }
+      setDropDateValue(finalDate);
+    }
+  }, [pickDateValue]);
