@@ -1,3 +1,451 @@
+import React, { useEffect, useState } from "react";
+import { Form, Row, Col, Button, Image } from "react-bootstrap";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import StripeCheckout from "react-stripe-checkout";
+import "react-datepicker/dist/react-datepicker.css";
+import TextField from "@mui/material/TextField";
+import AdapterDateFns from "@mui/lab/AdapterDateFns";
+import LocalizationProvider from "@mui/lab/LocalizationProvider";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import DatePicker from "react-datepicker";
+import "./checkout.css";
+import {
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
+  TableContainer,
+  Table,
+  Paper,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
+  TableFooter,
+} from "@mui/material";
+import {
+  useApplyPromocodeMutation,
+  useCheckoutOrderMutation,
+  useGetPromoCodeListMutation,
+  useListAddressMutation,
+  useViewDetailsMutation,
+} from "../../app/services/authApi";
+import { loadStripe } from "@stripe/stripe-js";
+import {
+  CardElement,
+  Elements,
+  ElementsConsumer,
+} from "@stripe/react-stripe-js";
+import { useMemo } from "react";
+import moment from "moment/moment";
+
+const Checkout = () => {
+  const params = useParams();
+  const [cartDataTotalAmount, setCartDataTotalAmount] = useState(0);
+  const [detailsData, setDetailsData] = useState([]);
+  const [loyalityPoint, setLoyalityPoint] = useState(0.0);
+  const [checkoutOrder] = useCheckoutOrderMutation();
+  const [pickDateValue, setPickDateValue] = useState(null);
+  const [dropDateValue, setDropDateValue] = useState(null);
+  const [address, setAddress] = useState("");
+  const [images, setImages] = useState([]);
+  const [imageURLs, setImageURLs] = useState([]);
+  const [totalAmount, setTotalAmount] = useState(0);
+  const [totalAmountFull, setTotalAmountFull] = useState(0);
+  const [bagCost, setBagCost] = useState(0.0);
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (images.length < 1) return;
+    const newImageURLs = [];
+    images.forEach((image) => newImageURLs.push(URL.createObjectURL(image)));
+    setImageURLs(newImageURLs);
+  }, [images]);
+  const [isLoyaltyProgramApply, setIsLoyaltyProgramApply] = useState(0);
+  const [isPromoCodeApply, setIsPromoCodeApply] = useState(0);
+  const [loyalityPaisa, setLoyalityPaisa] = useState(0);
+  const [paymentPopup, setPaymentPopup] = useState(false);
+  const [serviceSent, setServiceSent] = useState(false);
+  const [myCustomItem, setMyCustomItem] = useState([]);
+
+  //show more promo code
+  const [showMore, setShowMore] = useState(false);
+  const [numberOfItems, setNumberOfItems] = useState(2);
+
+  const checkoutSubmit = async (e) => {
+    e.preventDefault();
+    // var fullAddress =
+    //   address.floor +
+    //   "," +
+    //   address.apartment +
+    //   "," +
+    //   address.street +
+    //   "," +
+    //   address.city +
+    //   "," +
+    //   address.zipcode;
+    const formData = new FormData();
+    if (localStorage.getItem("userId") === null) {
+      formData.append("email", fields.email);
+      formData.append("mobile", fields.mobile);
+    } else {
+      formData.append("userId", localStorage.getItem("userId"));
+    }
+
+    formData.append("shopId", params.shopId);
+    formData.append("pickupDropAddress", address);
+    formData.append("pickupDate", pickDateValue);
+    formData.append("pickupTime", pickUpTimeApply);
+    formData.append("dropoffDate", dropDateValue);
+    formData.append("dropoffTime", dropOffTimeApply);
+    formData.append("numberOfBag", fields.numberOfBag);
+    formData.append("description", fields.description);
+    formData.append("itemImages", imageURLs);
+    formData.append("isPromoCodeApply", isPromoCodeApply);
+    formData.append("isLoyaltyProgramApply", isLoyaltyProgramApply);
+    formData.append("loyaltyPoints", loyalityPoint);
+    formData.append("loyaltyPointValue", loyalityPaisa);
+    formData.append("bagCost", bagCost);
+    formData.append("deliveryCharges", detailsData.deliveryCharge);
+    formData.append("discountAmount", discountAmount);
+    formData.append("subTotal", totalAmountFull);
+    formData.append("totalAmount", totalAmountFull);
+    formData.append("paymentMethod", "COD");
+    for (var i = 0; i < myCustomItem.length; i++) {
+      formData.append(`items[` + i + `][itemId]`, myCustomItem[i].itemId);
+      formData.append(`items[` + i + `][qty]`, myCustomItem[i].qty);
+      formData.append(`items[` + i + `][price]`, myCustomItem[i].price);
+    }
+    let result = await checkoutOrder(formData)
+      .then((response) => {
+        return response.data ? response.data : response.error.data;
+      })
+      .catch((result) => {
+        return result.error.data;
+      });
+  };
+  const [afterloyalityPoint, setAfterloyalityPoint] = useState(0);
+  const loyalityPointChange = (e) => {
+    if (e.target.checked == true) {
+      setIsLoyaltyProgramApply(1);
+
+      setTotalAmountFull(Number(totalAmountFull) - Number(loyalityPoint));
+      setAfterloyalityPoint(loyalityPoint);
+    } else {
+      setIsLoyaltyProgramApply(0);
+      setTotalAmountFull(Number(totalAmountFull) + Number(loyalityPoint));
+      setAfterloyalityPoint(0);
+    }
+  };
+  const handleAddressChange = (event) => {
+    setAddress(event.target.value);
+  };
+
+  const handleCloseSuccessService = () => {
+    setServiceSent(false);
+    setPaymentPopup(false);
+  };
+
+  const showServicePopup = () => {
+    setServiceSent(true);
+    setPaymentPopup(false);
+  };
+
+  const onChangeImage = (e) => {
+    setImages([...e.target.files]);
+  };
+
+  const closeTime = () => {
+    setShowPickUpTime(false);
+    setShowDropOffTime(false);
+  };
+
+  const [showPickUpTime, setShowPickUpTime] = useState(false);
+  const [pickUpTime, setPickUpTime] = useState();
+  const [pickUpTimeApply, setPickUpTimeApply] = useState();
+
+  const pickupSelectTime = (slot) => {
+    setPickUpTime(slot);
+  };
+  const pickupSelectTimeApply = () => {
+    setPickUpTimeApply(pickUpTime);
+    setShowPickUpTime(false);
+  };
+  const [cartData, setCartData] = useState([]);
+  const [showDropOffTime, setShowDropOffTime] = useState(false);
+  const [dropOffTime, setDropOffTime] = useState();
+  const [dropOffTimeApply, setDropOffTimeApply] = useState();
+
+  const dropOffSelectTime = (slot) => {
+    setDropOffTime(slot);
+  };
+  const dropOffSelectTimeApply = () => {
+    setDropOffTimeApply(dropOffTime);
+    setShowDropOffTime(false);
+  };
+
+  // useEffect(() => {
+  //   console.log(pickUpTime, "pickUpTime");
+  // }, [pickUpTime]);
+  const [fields, setFields] = useState({
+    userId: localStorage.getItem("userId"),
+    shopId: "",
+    pickupDropAddress: "",
+    pickupDate: "",
+    pickupTime: "",
+    dropoffDate: "",
+    dropoffTime: "",
+    numberOfBag: "",
+    description: "",
+    itemImages: "",
+    isPromoCodeApply: "",
+    loyaltyPoint: "",
+    bagCost: "",
+    deliveryCharges: "",
+    discountAmount: "",
+    subTotal: "",
+    totalAmount: "",
+    paymentMethod: "",
+  });
+  const [pfields, setPfields] = useState([]);
+  const promoHandleChange = (e) => {
+    setPfields({ ...pfields, [e.target.name]: e.target.value });
+  };
+
+  useEffect(() => {
+    setCartData(JSON.parse(localStorage.getItem("cartItem")));
+    let itmtf = 0;
+    var mItema = [];
+    JSON.parse(localStorage.getItem("cartItem"))?.map((row) => {
+      let md = {
+        itemId: row.productData.productId._id,
+        qty: row.qty,
+        price: row.productData.afterDiscountPrice * row.qty,
+      };
+      mItema.push(md);
+      itmtf += row.productData.afterDiscountPrice * row.qty;
+    });
+    setMyCustomItem(mItema);
+    getAddressList([]).then((res) => {
+      setAddressData(res);
+    });
+    setTimeout(() => {
+      getViewDetails([]).then((res) => {
+        var tloyality = res.loyaltyPointValue * res.loyaltyPerPointCost;
+        // console.log(res);
+        setLoyalityPoint(res.loyaltyPointValue);
+        setLoyalityPaisa(tloyality);
+        setCartDataTotalAmount(itmtf);
+        setTotalAmount(Number(itmtf));
+        setTotalAmountFull(Number(itmtf) + Number(res.deliveryCharge));
+        setDetailsData(res);
+      });
+    }, 500);
+  }, []);
+
+  const [listAddress] = useListAddressMutation();
+  const [addressData, setAddressData] = useState([]);
+  const [viewDetails] = useViewDetailsMutation();
+  const getViewDetails = async () => {
+    let userId = localStorage.getItem("userId");
+    let laundryAdminId = localStorage.getItem("LaundryAdminId");
+    let shopId = params.shopId;
+    let result = await viewDetails({
+      userId: userId,
+      laundryAdminId: laundryAdminId,
+      shopId: shopId,
+    })
+      .then((response) => {
+        return response.data ? response : response.error;
+      })
+      .catch((result) => {
+        return result.error.data;
+      });
+    if (result.data.status === 200) {
+      return result.data.result;
+    } else {
+      throw new Error("Data coulde not found!");
+    }
+  };
+  const getAddressList = async () => {
+    let userId = localStorage.getItem("userId");
+    let result = await listAddress({ userId: userId })
+      .then((response) => {
+        return response.data ? response : response.error;
+      })
+      .catch((result) => {
+        return result.error.data;
+      });
+    if (result.data.status === 200) {
+      return result.data.result;
+    } else {
+      throw new Error("Data Could not found!");
+    }
+  };
+
+  const [getPromoCodeList] = useGetPromoCodeListMutation();
+  const [promoCodes, setPromoCodes] = useState([]);
+
+  // console.log(zipcode);
+
+  const getPromoCodes = async () => {
+    const zipcode = localStorage.getItem("shopZipcode");
+    await getPromoCodeList({ zipcode })
+      .then((res) => setPromoCodes(res.data.result))
+      .catch((err) => console.log(err));
+  };
+
+  useEffect(() => {
+    getPromoCodes();
+  }, []);
+
+  // console.log(promoCodes);/
+
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [promoResponse, setPromoResponse] = useState(0);
+  const [promocodeSuccessMessagese, setPromocodeSuccessMessage] = useState();
+  const [promocodeErrorMessagese, setPromocodeErrorMessage] = useState();
+  const [applyPromocode] = useApplyPromocodeMutation();
+  const getPromoCodeData = async (code) => {
+    let result = await applyPromocode({
+      shopId: params.shopId,
+      promocodeName: pfields.promocodeName ? pfields.promocodeName : code,
+    })
+      .then((response) => {
+        return response.data ? response : response.error;
+      })
+      .catch((result) => {
+        return result.error.data;
+      });
+    if (result.data.status === 200) {
+      setIsPromoCodeApply(1);
+
+      setPromoResponse(result.data.result);
+
+      let totalAmount = 0;
+
+      cartData.forEach((row) => {
+        if (
+          row?.productData?.productId?._id === result?.data?.result?.productId
+        ) {
+          let discount =
+            row.productData.afterDiscountPrice *
+            row.qty *
+            (result.data.result.discount / 100);
+
+          totalAmount +=
+            row.productData.afterDiscountPrice * row.qty - discount;
+        } else {
+          totalAmount += row.productData.afterDiscountPrice * row.qty;
+        }
+      });
+
+      setTotalAmount(totalAmount);
+
+      setTotalAmountFull(Number(detailsData.deliveryCharge) + totalAmount);
+
+      // setDiscountAmount(
+      //   (cartDataTotalAmount * result.data.result.discount) / 100
+      // );
+      // setTotalAmount(
+      //   Number(detailsData.deliveryCharge) +
+      //     cartDataTotalAmount -
+      //     (cartDataTotalAmount * result.data.result.discount) / 100
+      // );
+      setPromocodeErrorMessage("");
+      setPromocodeSuccessMessage("Promocode Applied Successfully!");
+      return result.data.result;
+    } else {
+      setIsPromoCodeApply(0);
+      setPromocodeSuccessMessage("");
+      setPromocodeErrorMessage(result.data.message);
+      throw new Error("Data could not be found");
+    }
+  };
+
+  const handleChange = (e) => {
+    if (e.target.name === "numberOfBag") {
+      setBagCost(e.target.value * detailsData.bagCost);
+      setTotalAmountFull(
+        e.target.value * detailsData.bagCost + totalAmountFull
+      );
+    }
+    setFields({ ...fields, [e.target.name]: e.target.value });
+  };
+
+  const onToken = (token) => {
+    toast.success("Payment Successfull", {
+      position: toast.POSITION.TOP_RIGHT,
+    });
+    localStorage.removeItem("cartItem");
+    navigate("/my-service");
+  };
+
+  useEffect(() => {
+    if (showMore) {
+      setNumberOfItems(promoCodes?.length);
+    }
+  }, [showMore]);
+
+  const handlePromoClick = (code) => {
+    const promoCodeInput = document.querySelector("#promoCodeInput");
+    promoCodeInput.value = code;
+    promoCodeInput.focus();
+    getPromoCodeData(code);
+  };
+
+  // console.log();
+  // console.log(fields);
+
+  useEffect(() => {
+    let event;
+
+    // if (addressData?.length > 0) {
+    //   event = {
+    //     target: {
+    //       value:
+    //         addressData[addressData.length - 1]?.floor +
+    //         ", " +
+    //         addressData[addressData.length - 1]?.apartment +
+    //         ", " +
+    //         addressData[addressData.length - 1]?.street +
+    //         ", " +
+    //         addressData[addressData.length - 1]?.city +
+    //         ", " +
+    //         addressData[addressData.length - 1]?.zipcode,
+    //     },
+    //   };
+    // } else {
+    const address = JSON.parse(localStorage.getItem("custAddress"));
+
+    if (!address?.floor && !address?.apartment) {
+      event = {
+        target: {
+          value:
+            address?.street + ", " + address?.city + ", " + address?.zipcode,
+        },
+      };
+    } else {
+      event = {
+        target: {
+          value:
+            address?.floor +
+            ", " +
+            address?.apartment +
+            ", " +
+            address?.street +
+            ", " +
+            address?.city +
+            ", " +
+            address?.zipcode,
+        },
+      };
+    }
+    // }
+    handleAddressChange(event);
+    //eslint-disable-next-line
+  }, [addressData]);
+
   const [pickDates, setPickDates] = useState([]);
 
   useEffect(() => {
@@ -8,7 +456,6 @@
     let custAddress = JSON.parse(localStorage.getItem("custAddress"));
 
     if (detailsData?.deliveryAndPickup?.length > 0) {
-
       filteredDeliveryPickup = detailsData?.deliveryAndPickup?.filter(
         (item) => item.status === 1
       );
@@ -104,3 +551,1426 @@
       setDropDateValue(finalDate);
     }
   }, [pickDateValue]);
+
+  const [slots, setSlots] = useState(null);
+
+  useEffect(() => {
+    let slots = [];
+    if (pickDates?.length > 0) {
+      console.log(
+        Number(pickDates[0].openTime.split(":")[0]),
+        Number(pickDates[0].closeTime.split(":")[0])
+      );
+
+      const openTime = Number(pickDates[0].openTime.split(":")[0]);
+      const closeTime = Number(pickDates[0].closeTime.split(":")[0]);
+
+      for (let i = openTime; i <= closeTime; i++) {
+        if (i.toString().length === 1) {
+          slots.push("0" + i + ":00");
+        } else {
+          slots.push("" + i + ":00");
+        }
+      }
+
+      setPickUpTime(slots[0]);
+      setDropOffTime(slots[0]);
+      setPickUpTimeApply(slots[0]);
+      setDropOffTimeApply(slots[0]);
+      setSlots(slots);
+    }
+  }, [pickDates]);
+
+  return (
+    <div className="appWrapper">
+      <ToastContainer />
+
+      <div className="appContainer checkoutContainer py-20 px-40">
+        <div>
+          <div className="pageHeader mb-15 d-flex position-relative">
+            <div className="headerLeft ">
+              <Link to="../home">
+                <svg
+                  width="9"
+                  height="16"
+                  viewBox="0 0 9 16"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M8 15L1 8L8 1"
+                    stroke="#1C1C1C"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </Link>
+            </div>
+            <div className="pageTitle">
+              <h1>Checkout</h1>
+            </div>
+          </div>
+          <Form onSubmit={checkoutSubmit} className="checkoutForm">
+            <div className="checkoutFormDetails_1">
+              <div className="px-25 pt-25 checkout-border-bottom">
+                {!localStorage.getItem("userId") && (
+                  <>
+                    <Form.Group
+                      className="form-group style_2"
+                      controlId="email"
+                    >
+                      <Form.Label>Email</Form.Label>
+                      <Form.Control
+                        type="email"
+                        name="email"
+                        placeholder=""
+                        onChange={handleChange}
+                      />
+                    </Form.Group>
+                    <Form.Group
+                      className="form-group style_2"
+                      controlId="email"
+                    >
+                      <Form.Label>Mobile No.</Form.Label>
+                      <Form.Control
+                        type="text"
+                        name="mobile"
+                        placeholder=""
+                        onChange={handleChange}
+                      />
+                    </Form.Group>
+                  </>
+                )}
+
+                <FormControl
+                  fullWidth
+                  variant="standard"
+                  className="zul_style_2"
+                >
+                  <InputLabel id="demo-simple-select-label">Address</InputLabel>
+                  {/* {localStorage.getItem("userId") ? (
+                    <Select
+                      labelId="demo-simple-select-label"
+                      id="demo-simple-select"
+                      value={address}
+                      label="Address"
+                      onChange={handleAddressChange}
+                    >
+                      <MenuItem>Select Address</MenuItem>
+                      {addressData &&
+                        addressData.map((address) => {
+                          if (address) {
+                            var fullAddress =
+                              address.floor +
+                              "," +
+                              address.apartment +
+                              "," +
+                              address.street +
+                              "," +
+                              address.city +
+                              "," +
+                              address.zipcode;
+                          }
+                          return (
+                            <MenuItem value={address}>{fullAddress}</MenuItem>
+                          );
+                        })}
+                    </Select>
+                  ) : (
+                   
+                  )} */}
+
+                  <Form.Group
+                    className="form-group style_2"
+                    controlId="Address"
+                  >
+                    <Form.Control
+                      type="text"
+                      name="address"
+                      placeholder=""
+                      value={address}
+                      onChange={handleAddressChange}
+                    />
+                  </Form.Group>
+
+                  {/* <br />
+                  {localStorage.getItem("userId") && (
+                    <div>
+                      <Link to="/add-address">
+                        <Button>Add Address</Button>
+                      </Link>
+                    </div>
+                  )} */}
+                </FormControl>
+
+                <Form.Group
+                  className="form-group style_2"
+                  controlId="formBasicEmail"
+                >
+                  <Form.Label>Pickup date & time</Form.Label>
+                  <Row>
+                    <Col>
+                      {/* <LocalizationProvider dateAdapter={AdapterDateFns}>
+                        <DatePicker
+                          // value={pickDateValue}
+                          value={new Date()}
+                          onChange={(newValue) => {
+                            setPickDateValue(newValue);
+                          }}
+                          minDate={new Date()}
+                          showDaysOutsideCurrentMonth={true}
+                          showToolbar={true}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              inputProps={{
+                                ...params.inputProps,
+                                placeholder: "DD/MM/YYYY",
+                              }}
+                            />
+                          )}
+                          inputFormat="dd/MM/yyyy"
+                        />
+                      </LocalizationProvider> */}
+                      <DatePicker
+                        className="custom-date-picker"
+                        selected={pickDateValue}
+                        onChange={(date) => setPickDateValue(date)}
+                        dateFormat="dd/MM/yyyy"
+                        filterDate={filterDays}
+                        minDate={moment().toDate()}
+                        placeholderText="Select a Pickup Date"
+                      />
+                    </Col>
+                    <Col>
+                      <Form.Control
+                        name="pickupTime"
+                        type="text"
+                        placeholder="Select Time"
+                        value={pickUpTimeApply ? pickUpTimeApply : ""}
+                        onClick={() => setShowPickUpTime(true)}
+                        style={{ cursor: "pointer" }}
+                      />
+                    </Col>
+                  </Row>
+                </Form.Group>
+
+                <Form.Group
+                  className="form-group style_2"
+                  controlId="formBasicEmail"
+                >
+                  <Form.Label>Drop off date & time</Form.Label>
+                  <Row>
+                    <Col>
+                      {/* <LocalizationProvider dateAdapter={AdapterDateFns}>
+                        <DatePicker
+                          value={dropDateValue}
+                          onChange={(newValue) => {
+                            setDropDateValue(newValue);
+                          }}
+                          minDate={new Date()}
+                          showDaysOutsideCurrentMonth={true}
+                          showToolbar={true}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              inputProps={{
+                                ...params.inputProps,
+                                placeholder: "DD/MM/YYYY",
+                              }}
+                            />
+                          )}
+                          inputFormat="dd/MM/yyyy"
+                        />
+                      </LocalizationProvider> */}
+                      <DatePicker
+                        className="custom-date-picker"
+                        selected={dropDateValue}
+                        onChange={(date) => setDropDateValue(date)}
+                        dateFormat="dd/MM/yyyy"
+                        filterDate={filterDays}
+                        minDate={moment().toDate()}
+                        excludeDates={[pickDateValue]}
+                        placeholderText="Select a Drop off Date"
+                      />
+                    </Col>
+                    <Col>
+                      <Form.Control
+                        name="dropOffTime"
+                        type="text"
+                        placeholder="Select Time"
+                        value={dropOffTimeApply ? dropOffTimeApply : ""}
+                        onClick={() => setShowDropOffTime(true)}
+                        style={{ cursor: "pointer" }}
+                      />
+                    </Col>
+                  </Row>
+                </Form.Group>
+              </div>
+              <div className="px-25 pt-25 checkout-border-bottom">
+                <FormControl
+                  fullWidth
+                  variant="standard"
+                  className="zul_style_2"
+                >
+                  <InputLabel id="demo-simple-select-label">
+                    Number of Bags
+                  </InputLabel>
+                  <Select
+                    labelId="demo-simple-select-label"
+                    id="demo-simple-select"
+                    label="Address"
+                    placeholder="Select number of bags"
+                    onChange={handleChange}
+                    name="numberOfBag"
+                  >
+                    <MenuItem value={1}>1</MenuItem>
+                    <MenuItem value={2}>2</MenuItem>
+                    <MenuItem value={3}>3</MenuItem>
+                  </Select>
+                </FormControl>
+              </div>
+              <div className="pt-25 checkout-border-bottom">
+                <div className="checkoutCartItem">
+                  <TableContainer component={Paper}>
+                    <Table sx={{ minWidth: 320 }} aria-label="simple table">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>List of Items</TableCell>
+                          <TableCell align="center">Units/Kg</TableCell>
+                          <TableCell align="right">Total</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {cartData &&
+                          cartData.map((row) => {
+                            return (
+                              <TableRow
+                                sx={{
+                                  "&:last-child td, &:last-child th": {
+                                    border: 0,
+                                  },
+                                }}
+                              >
+                                <TableCell component="th" scope="row">
+                                  <div className="cartItem">
+                                    <div className="ci_image">
+                                      <Image
+                                        src={
+                                          row.productData.productId
+                                            ? process.env
+                                                .REACT_APP_API_HOSTNAME +
+                                              "/" +
+                                              row.productData.productId
+                                                .itemImage
+                                            : "https://www.pngitem.com/pimgs/m/150-1503945_transparent-user-png-default-user-image-png-png.png"
+                                        }
+                                        height="40px"
+                                      />
+                                    </div>
+                                    <div className="ci_title">
+                                      <h4>
+                                        {row.productData.productId.itemName}
+                                      </h4>
+                                      <p>
+                                        {row.productData.afterDiscountPrice}
+                                        €/Item
+                                      </p>
+                                      <p>
+                                        <span className="p-0">
+                                          {row.productData.servicePrice}€/Item
+                                        </span>
+                                      </p>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell align="center">{row.qty}</TableCell>
+                                <TableCell align="right">
+                                  {promoResponse &&
+                                  promoResponse?.productId ===
+                                    row?.productData?.productId?._id ? (
+                                    <div
+                                      style={{
+                                        textDecoration: "line-through",
+                                        color: "red",
+                                      }}
+                                    >
+                                      {(
+                                        row.productData.afterDiscountPrice *
+                                        row.qty
+                                      ).toFixed(2)}{" "}
+                                      €
+                                    </div>
+                                  ) : (
+                                    ""
+                                  )}
+                                  {promoResponse &&
+                                  promoResponse?.productId ===
+                                    row?.productData?.productId?._id
+                                    ? (
+                                        row.productData.afterDiscountPrice *
+                                          row.qty -
+                                        row.productData.afterDiscountPrice *
+                                          row.qty *
+                                          (promoResponse?.discount / 100)
+                                      ).toFixed(2)
+                                    : (
+                                        row.productData.afterDiscountPrice *
+                                        row.qty
+                                      ).toFixed(2)}{" "}
+                                  €
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </div>
+              </div>
+            </div>
+            <div className="checkoutFormDetails_2">
+              <div className="pt-25 px-25 checkout-border-bottom">
+                <Form.Group
+                  className="form-group style_3"
+                  controlId="checkout_description"
+                >
+                  <Form.Label>Description</Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={3}
+                    placeholder="Enter Description"
+                    name="description"
+                    onChange={handleChange}
+                  />
+                </Form.Group>
+              </div>
+              <div className="pt-25 px-25 checkout-border-bottom pb-10">
+                <p className="font-size-16 font-weight-500">Items Images</p>
+
+                <div className="uploadImageList">
+                  {imageURLs.map((imageSrc) => {
+                    return (
+                      <div className="uploadImageItem">
+                        <img src={imageSrc} alt="" />
+                      </div>
+                    );
+                  })}
+
+                  <Form.Group
+                    className="form-group mb-0"
+                    controlId="itemImages"
+                  >
+                    <Form.Label>
+                      <div className="btn btn-border AddImagesBtn">
+                        <div>
+                          <svg
+                            width="24"
+                            height="24"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path
+                              d="M23 19C23 19.5304 22.7893 20.0391 22.4142 20.4142C22.0391 20.7893 21.5304 21 21 21H3C2.46957 21 1.96086 20.7893 1.58579 20.4142C1.21071 20.0391 1 19.5304 1 19V8C1 7.46957 1.21071 6.96086 1.58579 6.58579C1.96086 6.21071 2.46957 6 3 6H7L9 3H15L17 6H21C21.5304 6 22.0391 6.21071 22.4142 6.58579C22.7893 6.96086 23 7.46957 23 8V19Z"
+                              stroke="#009FE3"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                            <path
+                              d="M12 17C14.2091 17 16 15.2091 16 13C16 10.7909 14.2091 9 12 9C9.79086 9 8 10.7909 8 13C8 15.2091 9.79086 17 12 17Z"
+                              stroke="#009FE3"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                          <br />
+                          <span className="font-size-11 font-weight-500">
+                            Add Photo
+                          </span>
+                        </div>
+                      </div>
+                    </Form.Label>
+                    <Form.Control
+                      multiple
+                      accept="image/png, image/jpeg"
+                      type="file"
+                      onChange={onChangeImage}
+                      name="itemImages"
+                      style={{ display: "none" }}
+                    />
+                  </Form.Group>
+                </div>
+              </div>
+
+              <div className="py-25 px-25 checkout-border-bottom">
+                {loyalityPoint && (
+                  <Form.Group
+                    className="mb-3 labelLeft loyaltyPoints"
+                    controlId="formBasicCheckbox"
+                  >
+                    <Form.Check
+                      type="switch"
+                      name="loyalityPoint"
+                      onChange={loyalityPointChange}
+                      label={
+                        <div>
+                          <span>Use Loyalty points</span>
+                          <div>{parseFloat(loyalityPoint).toFixed(2)} €</div>
+                        </div>
+                      }
+                    />
+                  </Form.Group>
+                )}
+
+                <div className="promoCode mt-20">
+                  <h4 className="font-size-15">Promo Code</h4>
+                  <div className="promoCodeFields">
+                    <Form.Group className="form-group style_2 mb-0">
+                      <Form.Control
+                        type="text"
+                        id={"promoCodeInput"}
+                        placeholder="Enter Promo Code"
+                        name="promocodeName"
+                        onChange={promoHandleChange}
+                      />
+                    </Form.Group>
+                    <Button
+                      variant="primary"
+                      className="btn-block"
+                      type="button"
+                      onClick={getPromoCodeData}
+                    >
+                      Apply
+                    </Button>
+                  </div>
+
+                  {promocodeErrorMessagese && (
+                    <div className="text-danger mt-15">
+                      {" "}
+                      {promocodeErrorMessagese}
+                    </div>
+                  )}
+                  {promocodeSuccessMessagese && (
+                    <div className="text-success mt-15">
+                      {" "}
+                      {promocodeSuccessMessagese}
+                    </div>
+                  )}
+                </div>
+                <div className="promocodes">
+                  <div className="promoCodeList">
+                    {promoCodes &&
+                      promoCodes.slice(0, numberOfItems).map((data) => (
+                        <div
+                          className="promoItem"
+                          onClick={() => handlePromoClick(data?.promoCodeName)}
+                        >
+                          <div className="promoItemLeft">
+                            <p>Upto {data?.discount}% off</p>
+                          </div>
+                          <div className="promoItemRight">
+                            <span>{data?.promoCodeName}</span>
+                          </div>
+                        </div>
+                      ))}
+
+                    {/* <div className="promoItem">
+                      <div className="promoItemLeft">
+                        <p>Upto 30% off on more than Rs 2000 order. </p>
+                      </div>
+                      <div className="promoItemRight">
+                        <span>NEW30</span>
+                      </div>
+                    </div>
+                    <div className="promoItem">
+                      <div className="promoItemLeft">
+                        <p>Upto 20% off on more than Rs 2000 order. </p>
+                      </div>
+                      <div className="promoItemRight">
+                        <span>FLAT20</span>
+                      </div>
+                    </div>
+                    <div className="promoItem">
+                      <div className="promoItemLeft">
+                        <p>Upto 30% off on more than Rs 2000 order. </p>
+                      </div>
+                      <div className="promoItemRight">
+                        <span>NEW30</span>
+                      </div>
+                    </div> */}
+                    {!showMore && promoCodes.length > 2 && (
+                      <div className="text-center mt-20">
+                        <button
+                          style={{
+                            background: "transparent",
+                            color: "#009fe3",
+                            border: "none",
+                          }}
+                          type="button"
+                          onClick={() => setShowMore(true)}
+                        >
+                          <svg
+                            version="1.0"
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16.000000pt"
+                            height="16.000000pt"
+                            viewBox="0 0 24.000000 24.000000"
+                            preserveAspectRatio="xMidYMid meet"
+                          >
+                            <g
+                              transform="translate(0.000000,24.000000) scale(0.100000,-0.100000)"
+                              fill="#009fe3"
+                              stroke="none"
+                            >
+                              <path
+                                d="M37 193 c-4 -6 14 -29 38 -53 l45 -44 45 44 c24 24 42 47 38 53 -3 5
+-23 -8 -44 -29 l-39 -38 -39 38 c-21 21 -41 34 -44 29z"
+                              />
+                              <path
+                                d="M37 133 c-4 -6 14 -29 38 -53 l45 -44 45 44 c24 24 42 47 38 53 -3 5
+-23 -8 -44 -29 l-39 -38 -39 38 c-21 21 -41 34 -44 29z"
+                              />
+                            </g>
+                          </svg>{" "}
+                          View More
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="py-25 px-25">
+                <div className="table-nopadded table-noshadow table-noborder">
+                  <TableContainer component={Paper}>
+                    <Table aria-label="simple table">
+                      <TableBody>
+                        <TableRow
+                          sx={{
+                            "&:last-child td, &:last-child th": { border: 0 },
+                          }}
+                        >
+                          <TableCell component="th" scope="row">
+                            Item Total
+                          </TableCell>
+                          <TableCell align="right">
+                            {totalAmount.toFixed(2)} €
+                          </TableCell>
+                        </TableRow>
+                        <TableRow
+                          sx={{
+                            "&:last-child td, &:last-child th": { border: 0 },
+                          }}
+                        >
+                          <TableCell component="th" scope="row">
+                            Bag Cost
+                          </TableCell>
+                          <TableCell align="right">{bagCost} €</TableCell>
+                        </TableRow>
+                        <TableRow
+                          sx={{
+                            "&:last-child td, &:last-child th": { border: 0 },
+                          }}
+                        >
+                          <TableCell component="th" scope="row">
+                            Delivery Fee
+                          </TableCell>
+                          <TableCell align="right">
+                            {detailsData.deliveryCharge !== ""
+                              ? detailsData.deliveryCharge
+                              : 0}{" "}
+                            €
+                          </TableCell>
+                        </TableRow>
+                        {discountAmount > 0 && (
+                          <TableRow
+                            sx={{
+                              "&:last-child td, &:last-child th": { border: 0 },
+                            }}
+                          >
+                            <>
+                              <TableCell component="th" scope="row">
+                                Promo Code{" "}
+                              </TableCell>
+                              <TableCell align="right">
+                                - {discountAmount.toFixed(2)} €
+                              </TableCell>
+                            </>
+                          </TableRow>
+                        )}
+                        {discountAmount >
+                          parseFloat(afterloyalityPoint).toFixed(2) && (
+                          <TableRow
+                            sx={{
+                              "&:last-child td, &:last-child th": { border: 0 },
+                            }}
+                          >
+                            <TableCell component="th" scope="row">
+                              Loyalty Points{" "}
+                            </TableCell>
+                            <TableCell align="right">
+                              - {parseFloat(afterloyalityPoint).toFixed(2)} €
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                      <TableFooter className="tableFooterTotal tf-border-top tf-border-bottom">
+                        <TableCell>Order Total </TableCell>
+                        <TableCell align="right">
+                          {parseFloat(totalAmountFull).toFixed(2)} €
+                        </TableCell>
+                      </TableFooter>
+                    </Table>
+                  </TableContainer>
+
+                  <Form.Group className="mb-3 mt-25" controlId="acceptTerms">
+                    <Form.Check
+                      className="check-style-2"
+                      type="checkbox"
+                      required="true"
+                      label={
+                        <div className="font-400">
+                          I accept{" "}
+                          <Link
+                            className="font-600  parent-color nounderline"
+                            to="/terms-condition"
+                          >
+                            {" "}
+                            Terms & Condition
+                          </Link>
+                        </div>
+                      }
+                    />
+                  </Form.Group>
+                  <Form.Group className="mb-3" controlId="acceptPolicy">
+                    <Form.Check
+                      className="check-style-2"
+                      type="checkbox"
+                      label={
+                        <div className="font-400">
+                          I accept{" "}
+                          <Link
+                            className="font-600  parent-color nounderline"
+                            to="/privacy-policy"
+                          >
+                            {" "}
+                            Privacy Policy
+                          </Link>
+                        </div>
+                      }
+                    />
+                  </Form.Group>
+                </div>
+                {/* {localStorage.getItem("userId") ? ( */}
+                <StripeCheckout
+                  currency="EUR"
+                  email={fields?.email}
+                  label="Proceed To Pay"
+                  name="WashApp"
+                  billingAddress={address}
+                  shippingAddress={address}
+                  image="http://13.52.36.47:3001/images/wash-logo.png"
+                  description={`Your total is € ${parseFloat(
+                    totalAmountFull
+                  ).toFixed(2)}`}
+                  amount={parseFloat(totalAmountFull) * 100}
+                  panelLabel="Proceed To Pay"
+                  token={onToken}
+                  stripeKey="pk_test_51KqWrSD7M2fZ47Zy0eFp43uLhfdZJtNTnrAtDkO8g8bxe81JJSVGtfOpBKdCnNzJULm7JZYI6ptE8vFsYkbzTIiL0052DNRso9"
+                />
+                {/* ) : (
+                  ""
+                )} */}
+              </div>
+            </div>
+          </Form>
+        </div>
+      </div>
+      {showPickUpTime && (
+        <div className="bottomDialogMain withoverlay">
+          <div className="bottomDialog">
+            <div className="bd-header">
+              <div className="d-flex justify-content-center">
+                <h4>Pickup Time</h4>
+              </div>
+            </div>
+            <div className="bd-body px-25 pb-25">
+              <div className="timeSlots">
+                {slots.map((slot) => {
+                  return (
+                    <div
+                      onClick={() => pickupSelectTime(slot)}
+                      className={pickUpTime === slot ? "active slot" : "slot"}
+                    >
+                      <span>{slot}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="filterFooter">
+              <button
+                type="button"
+                onClick={closeTime}
+                className="btn btn-link btn-block"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-block"
+                onClick={pickupSelectTimeApply}
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showDropOffTime && (
+        <div className="bottomDialogMain withoverlay">
+          <div className="bottomDialog">
+            <div className="bd-header">
+              <div className="d-flex justify-content-center">
+                <h4>Drop Off Time</h4>
+              </div>
+            </div>
+            <div className="bd-body px-25 pb-25">
+              <div className="timeSlots">
+                {slots.map((slot) => {
+                  return (
+                    <div
+                      onClick={() => dropOffSelectTime(slot)}
+                      className={dropOffTime === slot ? "active slot" : "slot"}
+                    >
+                      <span>{slot}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="filterFooter">
+              <button
+                type="button"
+                onClick={closeTime}
+                className="btn btn-link btn-block"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-block"
+                onClick={dropOffSelectTimeApply}
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {paymentPopup && (
+        <div className="bottomDialogMain withoverlay">
+          <div className="bottomDialog">
+            <div className="px-25 py-25 addToCart">
+              <div className="paymentHeader text-end d-flex justify-content-between">
+                <h6 className="text-dark">Payment Method</h6>
+                <svg
+                  onClick={handleCloseSuccessService}
+                  width="19"
+                  height="19"
+                  viewBox="0 0 19 19"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M17 2L2 17"
+                    stroke="#050305"
+                    strokeWidth="2.3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M2 2L17 17"
+                    stroke="#050305"
+                    strokeWidth="2.3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+
+              <div className="text-start mt-20">
+                <p>Credit/Debit Card</p>
+                <div>
+                  <div class="cardDetailContainer d-flex flex-row-reverse justify-content-between align-items-center ">
+                    <input
+                      class="input"
+                      type="radio"
+                      name="flexRadioDefault"
+                      id="flexRadioDefault1"
+                    />
+                    <label
+                      class="label d-flex align-items-center"
+                      for="flexRadioDefault1"
+                    >
+                      <div className="d-flex">
+                        <svg
+                          width="30"
+                          height="30"
+                          viewBox="0 0 30 30"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M27.2867 19.965V19.6539H27.2082L27.1174 19.8676L27.0271 19.6539H26.9481V19.965H27.0039V19.7304L27.0888 19.9329H27.1465L27.2314 19.7299V19.965H27.2867ZM26.7888 19.965V19.707H26.8894V19.6544H26.6328V19.707H26.7335V19.965H26.7888Z"
+                            fill="#F79410"
+                          />
+                          <path
+                            d="M18.3841 21.3009H11.6074V8.71592H18.3841V21.3009Z"
+                            fill="#FF5F00"
+                          />
+                          <path
+                            d="M12.0417 15.0059C12.0417 12.453 13.1985 10.1789 14.9998 8.71343C13.6826 7.64178 12.0201 7.00215 10.2133 7.00215C5.93601 7.00215 2.46875 10.5855 2.46875 15.0059C2.46875 19.4263 5.93601 23.0097 10.2133 23.0097C12.0201 23.0097 13.6826 22.3701 14.9998 21.2984C13.1985 19.8329 12.0417 17.5589 12.0417 15.0059Z"
+                            fill="#EB001B"
+                          />
+                          <path
+                            d="M27.5277 15.0038C27.5277 19.4242 24.0604 23.0076 19.7831 23.0076C17.9763 23.0076 16.3139 22.3679 14.9961 21.2963C16.7979 19.8308 17.9547 17.5567 17.9547 15.0038C17.9547 12.4509 16.7979 10.1768 14.9961 8.71129C16.3139 7.63964 17.9763 7.00001 19.7831 7.00001C24.0604 7.00001 27.5277 10.5834 27.5277 15.0038Z"
+                            fill="#F79E1B"
+                          />
+                        </svg>
+                        <p className="bankName d-inline-block text-dark mb-0">
+                          Bank of Finland
+                          <p className="cardDetail d-block text-muted mb-0 ">
+                            *****8569 &nbsp; 07/2029
+                          </p>
+                          <div className="CVV_Input">
+                            <input
+                              type="text"
+                              name="cvv"
+                              class="input"
+                              placeholder="Enter CVV"
+                            />
+                          </div>
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                  <div class="cardDetailContainer d-flex flex-row-reverse justify-content-between align-items-center ">
+                    <input
+                      class="input"
+                      type="radio"
+                      name="flexRadioDefault"
+                      id="flexRadioDefault2"
+                    />
+                    <label
+                      class="label d-flex align-items-center"
+                      for="flexRadioDefault2"
+                    >
+                      <div className="d-flex">
+                        <svg
+                          width="30"
+                          height="10"
+                          viewBox="0 0 30 10"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            fill-rule="evenodd"
+                            clip-rule="evenodd"
+                            d="M11.471 0.158485L7.57075 9.06907H5.0349L3.11923 1.967C3.00897 1.53137 2.89872 1.37296 2.55417 1.18815C1.96156 0.884532 1.01061 0.594113 0.169922 0.422502L0.225049 0.158485H4.31824C4.84195 0.158485 5.31053 0.488506 5.42079 1.06934L6.44064 6.21768L8.94893 0.158485H11.471ZM21.4362 6.1648C21.4445 4.75559 20.2234 4.14404 19.2476 3.6553C18.5963 3.3291 18.0542 3.0576 18.0597 2.64017C18.0735 2.32335 18.3904 1.98013 19.0795 1.88772C19.4241 1.84812 20.375 1.80852 21.45 2.28375L21.8772 0.396026C21.2984 0.198013 20.5542 0 19.6308 0C17.2603 0 15.579 1.21448 15.5652 2.94379C15.5514 4.22428 16.7642 4.93712 17.6738 5.37275C18.611 5.80838 18.9279 6.0856 18.9279 6.48163C18.9142 7.07566 18.1837 7.33968 17.4946 7.35288C16.3029 7.36585 15.6036 7.04743 15.0566 6.7984L15.0277 6.78524L14.5867 8.73897C15.1517 8.98979 16.1854 9.201 17.2603 9.2142C19.7824 9.2142 21.4224 8.01293 21.4362 6.1648ZM27.7191 9.06907H29.938L27.9948 0.158485H25.9413C25.4727 0.158485 25.0868 0.409301 24.9214 0.805327L21.3106 9.05587H23.8327L24.3288 7.72258H27.4159L27.7191 9.06907ZM25.0316 5.91389L26.2995 2.57407L27.03 5.91389H25.0316ZM12.9173 9.06907L14.9019 0.158485H12.5038L10.5192 9.06907H12.9173Z"
+                            fill="#1A1F71"
+                          />
+                        </svg>
+
+                        <p className="bankName d-inline-block text-dark mb-0">
+                          OP-Pohjola Bank
+                          <p className="cardDetail d-block text-muted mb-0 ">
+                            *****7020 &nbsp; 03/2029
+                          </p>
+                          <div className="CVV_Input">
+                            <input
+                              type="text"
+                              name="cvv"
+                              class="input"
+                              placeholder="Enter CVV"
+                            />
+                          </div>
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                  <div class="cardDetailContainer d-flex flex-row-reverse justify-content-between align-items-center ">
+                    <input
+                      class="input"
+                      type="radio"
+                      name="flexRadioDefault"
+                      id="flexRadioDefault3"
+                    />
+                    <label
+                      class="label d-flex align-items-center"
+                      for="flexRadioDefault3"
+                    >
+                      <svg
+                        width="30"
+                        height="13"
+                        viewBox="0 0 30 13"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M5.48484 1.58789C5.13328 2.00391 4.57078 2.33203 4.00828 2.28516C3.93797 1.72266 4.21336 1.125 4.53563 0.755859C4.88719 0.328125 5.50242 0.0234375 6.00047 0C6.05906 0.585938 5.83055 1.16016 5.48484 1.58789ZM5.99461 2.39648C5.18016 2.34961 4.48289 2.85938 4.09617 2.85938C3.70359 2.85938 3.1118 2.41992 2.46727 2.43164C1.62938 2.44336 0.850079 2.91797 0.422345 3.67383C-0.456562 5.18555 0.193829 7.42383 1.04344 8.6543C1.45945 9.26367 1.9575 9.93164 2.61375 9.9082C3.23484 9.88477 3.48094 9.50391 4.23094 9.50391C4.9868 9.50391 5.20359 9.9082 5.85984 9.89648C6.53953 9.88477 6.96727 9.28711 7.38328 8.67773C7.85789 7.98633 8.05125 7.3125 8.06297 7.27734C8.05125 7.26562 6.75047 6.76758 6.73875 5.26758C6.72703 4.01367 7.76414 3.41602 7.81102 3.38086C7.22508 2.51367 6.31102 2.41992 5.99461 2.39648ZM10.6997 0.697266V9.83203H12.1177V6.70898H14.0805C15.8735 6.70898 17.1333 5.47852 17.1333 3.69727C17.1333 1.91602 15.897 0.697266 14.1274 0.697266H10.6997ZM12.1177 1.89258H13.7524C14.9829 1.89258 15.686 2.54883 15.686 3.70312C15.686 4.85742 14.9829 5.51953 13.7466 5.51953H12.1177V1.89258ZM19.7231 9.90234C20.6138 9.90234 21.4399 9.45117 21.8149 8.73633H21.8442V9.83203H23.1567V5.28516C23.1567 3.9668 22.102 3.11719 20.479 3.11719C18.9731 3.11719 17.8598 3.97852 17.8188 5.16211H19.0962C19.2016 4.59961 19.7231 4.23047 20.438 4.23047C21.3052 4.23047 21.7915 4.63477 21.7915 5.37891V5.88281L20.022 5.98828C18.3755 6.08789 17.4848 6.76172 17.4848 7.93359C17.4848 9.11719 18.4048 9.90234 19.7231 9.90234ZM20.104 8.81836C19.3481 8.81836 18.8677 8.45508 18.8677 7.89844C18.8677 7.32422 19.3305 6.99023 20.2153 6.9375L21.7915 6.83789V7.35352C21.7915 8.20898 21.0649 8.81836 20.104 8.81836ZM24.9087 12.3164C26.2915 12.3164 26.9419 11.7891 27.5102 10.1895L30.0005 3.20508H28.5591L26.8891 8.60156H26.8598L25.1899 3.20508H23.7075L26.1098 9.85547L25.9809 10.2598C25.7641 10.9453 25.4126 11.209 24.7856 11.209C24.6743 11.209 24.4575 11.1973 24.3696 11.1855V12.2812C24.4516 12.3047 24.8032 12.3164 24.9087 12.3164Z"
+                          fill="black"
+                        />
+                      </svg>
+
+                      <p className="bankName d-inline-block text-dark mb-0">
+                        Apple Pay
+                      </p>
+                    </label>
+                  </div>
+                </div>
+                <p>More Ways to Pay</p>
+                <div>
+                  <h6 className="text-dark d-flex justify-content-between mb-15">
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M17.4987 3.33331H2.4987C1.57822 3.33331 0.832031 4.0795 0.832031 4.99998V15C0.832031 15.9205 1.57822 16.6666 2.4987 16.6666H17.4987C18.4192 16.6666 19.1654 15.9205 19.1654 15V4.99998C19.1654 4.0795 18.4192 3.33331 17.4987 3.33331Z"
+                        stroke="#050305"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                      <path
+                        d="M0.832031 8.33331H19.1654"
+                        stroke="#050305"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                    {"Add Credit/Debit Card"}
+                    <svg
+                      width="9"
+                      height="16"
+                      viewBox="0 0 9 16"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M1 1L8 8L1 15"
+                        stroke="#050305"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </h6>
+                  <h6 className="text-dark d-flex justify-content-between mb-20">
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M3.70038 15.4C3.53479 15.4 3.40039 15.5344 3.40039 15.7C3.40039 15.8655 3.53479 15.9999 3.70038 15.9999H6.70037C6.86595 15.9999 7.00036 15.8655 7.00036 15.7C7.00036 15.5344 6.86595 15.4 6.70037 15.4H6.40038V8.19995H6.70037C6.86595 8.19995 7.00036 8.06555 7.00036 7.89996C7.00036 7.73438 6.86595 7.59998 6.70037 7.59998H3.70038C3.53479 7.59998 3.40039 7.73438 3.40039 7.89996C3.40039 8.06555 3.53479 8.19995 3.70038 8.19995H4.00037V15.4H3.70038ZM4.60038 8.19995H5.80037V15.4H4.60038V8.19995Z"
+                        fill="black"
+                        stroke="black"
+                        stroke-width="0.35"
+                      />
+                      <path
+                        d="M1.30006 7H18.7001C18.8342 7 18.9518 6.91119 18.9887 6.7822C19.0253 6.6535 18.9722 6.51579 18.8582 6.44502L10.1582 1.04501C10.0613 0.984997 9.93888 0.984997 9.84198 1.04501L1.14196 6.44502C1.02795 6.51583 0.97486 6.65353 1.01146 6.7822C1.04834 6.91119 1.16597 7 1.30006 7ZM10.0001 1.65311L17.648 6.40002H2.35214L10.0001 1.65311Z"
+                        fill="black"
+                        stroke="black"
+                        stroke-width="0.35"
+                      />
+                      <path
+                        d="M2.19922 16.9C2.19922 17.0656 2.33362 17.2 2.49921 17.2H17.4992C17.6648 17.2 17.7992 17.0656 17.7992 16.9C17.7992 16.7344 17.6648 16.6 17.4992 16.6H2.49921C2.33362 16.6 2.19922 16.7344 2.19922 16.9Z"
+                        fill="black"
+                        stroke="black"
+                        stroke-width="0.35"
+                      />
+                      <path
+                        d="M18.7 17.7999H1.29999C1.1344 17.7999 1 17.9343 1 18.0999V18.6999C1 18.8655 1.1344 18.9999 1.29999 18.9999C1.46557 18.9999 1.59998 18.8655 1.59998 18.6999V18.3999H18.4V18.6999C18.4 18.8655 18.5344 18.9999 18.7 18.9999C18.8656 18.9999 19 18.8655 19 18.6999V18.0999C19 17.9343 18.8656 17.7999 18.7 17.7999Z"
+                        fill="black"
+                        stroke="black"
+                        stroke-width="0.35"
+                      />
+                      <path
+                        d="M8.49921 15.4C8.33362 15.4 8.19922 15.5344 8.19922 15.7C8.19922 15.8655 8.33362 15.9999 8.49921 15.9999H11.4992C11.6648 15.9999 11.7992 15.8655 11.7992 15.7C11.7992 15.5344 11.6648 15.4 11.4992 15.4H11.1992V8.19995H11.4992C11.6648 8.19995 11.7992 8.06555 11.7992 7.89996C11.7992 7.73438 11.6648 7.59998 11.4992 7.59998H8.49921C8.33362 7.59998 8.19922 7.73438 8.19922 7.89996C8.19922 8.06555 8.33362 8.19995 8.49921 8.19995H8.7992V15.4H8.49921ZM9.39921 8.19995H10.5992V15.4H9.39921V8.19995Z"
+                        fill="black"
+                        stroke="black"
+                        stroke-width="0.35"
+                      />
+                      <path
+                        d="M13.3 15.4C13.1344 15.4 13 15.5344 13 15.7C13 15.8655 13.1344 15.9999 13.3 15.9999H16.3C16.4656 15.9999 16.6 15.8655 16.6 15.7C16.6 15.5344 16.4656 15.4 16.3 15.4H16V8.19995H16.3C16.4656 8.19995 16.6 8.06555 16.6 7.89996C16.6 7.73438 16.4656 7.59998 16.3 7.59998H13.3C13.1344 7.59998 13 7.73438 13 7.89996C13 8.06555 13.1344 8.19995 13.3 8.19995H13.6V15.4H13.3ZM14.2 8.19995H15.4V15.4H14.2V8.19995Z"
+                        fill="black"
+                        stroke="black"
+                        stroke-width="0.35"
+                      />
+                    </svg>
+                    {"Net Banking"}
+                    <svg
+                      width="9"
+                      height="16"
+                      viewBox="0 0 9 16"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M1 1L8 8L1 15"
+                        stroke="#050305"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </h6>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary btn-block btn-lg"
+                onClick={showServicePopup}
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {serviceSent && (
+        <div className="bottomDialogMain withoverlay">
+          <div className="bottomDialog">
+            <div className="px-25 py-30 addToCart">
+              <div className="text-end">
+                <svg
+                  onClick={handleCloseSuccessService}
+                  width="19"
+                  height="19"
+                  viewBox="0 0 19 19"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M17 2L2 17"
+                    stroke="#050305"
+                    strokeWidth="2.3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M2 2L17 17"
+                    stroke="#050305"
+                    strokeWidth="2.3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+
+              <div className="text-center">
+                <svg
+                  width="160"
+                  height="160"
+                  viewBox="0 0 160 160"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    opacity="0.1"
+                    d="M23.5206 26.2125C-0.430641 41.22 -4.49927 71.5412 7.62986 86.9316C11.852 92.2914 18.761 95.8901 20.3731 102.552C22.2155 110.132 16.6116 117.636 16.7651 125.446C16.8419 131.035 19.9125 136.242 24.2115 139.917C28.4336 143.593 33.7305 145.813 39.0274 147.498C72.9583 158.294 116.178 149.795 136.521 120.698C176.209 63.6546 116.562 -32.2096 23.5206 26.2125Z"
+                    fill="#009FE3"
+                  />
+                  <path
+                    d="M25.7044 44.5938C25.7044 44.5938 25.0167 38.1746 34.0341 38.8624C34.0341 38.8624 35.9445 32.7489 42.5166 31.9083C50.0056 30.9912 52.5274 36.417 53.368 37.6397C53.368 37.6397 65.3658 34.6593 66.7413 44.5174L25.7044 44.5938Z"
+                    fill="white"
+                  />
+                  <path
+                    d="M14 111.209H33.7312"
+                    stroke="#263238"
+                    strokeWidth="1.9915"
+                    strokeMiterlimit="10"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M4 119.59H24"
+                    stroke="#263238"
+                    strokeWidth="1.9915"
+                    strokeMiterlimit="10"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M9 102.994H38.6352"
+                    stroke="#263238"
+                    strokeWidth="1.9915"
+                    strokeMiterlimit="10"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M104.338 115.355H98.4268L99.1945 106.987H105.183L104.338 115.355Z"
+                    fill="#FB9F96"
+                  />
+                  <path
+                    d="M98.4272 114.357H106.028L112.323 116.967C113.552 117.582 114.396 118.887 114.396 120.346H97.5059L98.4272 114.357Z"
+                    fill="#20151D"
+                  />
+                  <path
+                    d="M106.565 114.664L104.876 112.361C104.876 112.361 102.189 111.9 102.419 114.818L106.565 114.664Z"
+                    fill="#20151D"
+                  />
+                  <path
+                    d="M70.9412 72.6683C70.9412 72.6683 103.724 71.747 112.169 77.8122C115.164 79.9619 107.793 110.518 107.793 110.518L97.3518 110.902L100.96 87.6394H80.6916C63.2636 85.9504 70.9412 72.6683 70.9412 72.6683Z"
+                    fill="#263238"
+                  />
+                  <path
+                    d="M87.0642 34.5875L86.2197 29.29C87.0642 27.9849 87.9855 28.3687 87.9855 28.3687C87.9855 28.292 89.4442 27.8313 89.4442 27.7545C95.4327 24.6068 97.9662 28.4455 97.9662 28.4455C97.9662 28.4455 96.8146 24.53 90.1352 24.2229C85.3751 23.9926 83.6861 25.221 83.5325 28.0616C83.2254 33.743 83.8396 34.3572 86.1429 38.4263L87.0642 34.5875Z"
+                    fill="#263238"
+                  />
+                  <path
+                    d="M84.2999 30.8257C84.7606 30.5953 85.3748 30.6721 85.7586 30.9792C85.8354 28.2921 86.8335 25.7585 89.1367 24.6069C89.5974 24.3766 90.1348 24.1462 90.5955 24.0695C92.9755 23.6088 95.4323 24.9908 96.9678 26.9101C98.5033 28.8295 99.1943 31.4399 98.964 33.9734C98.6569 37.3515 96.6607 40.6529 93.2058 40.8832C93.0523 40.8832 92.8219 40.8832 92.6684 40.8832L91.8239 46.3342C91.44 48.6375 89.1367 50.0962 86.9103 49.4052C84.9909 48.791 83.8393 46.7949 84.2999 44.8755C84.2999 44.8755 86.0657 36.7373 86.2961 35.5857C86.2961 35.5089 86.2193 35.5089 86.2193 35.5089C85.5283 35.6625 84.6838 35.5857 84.0696 35.2018C83.3786 34.6644 82.918 33.7431 82.918 32.8218C83.0715 31.9773 83.5322 31.1328 84.2999 30.8257Z"
+                    fill="#FFBE9D"
+                  />
+                  <path
+                    d="M94.0636 37.1499C94.1213 37.0923 94.4697 37.4792 95.0431 37.4545C95.6165 37.4298 95.9896 37.0182 96.0417 37.0704C96.0939 37.1225 96.017 37.2267 95.8497 37.3886C95.6263 37.5943 95.3381 37.7156 95.0348 37.7316C94.7388 37.7408 94.4503 37.6368 94.2282 37.4407C94.0801 37.3036 94.0362 37.1719 94.0636 37.1499Z"
+                    fill="#263238"
+                  />
+                  <path
+                    d="M93.3057 32.57C93.3765 32.2817 93.3004 32.0152 93.1357 31.9748C92.9709 31.9343 92.78 32.1352 92.7092 32.4235C92.6384 32.7118 92.7146 32.9782 92.8793 33.0187C93.044 33.0591 93.235 32.8582 93.3057 32.57Z"
+                    fill="#263238"
+                  />
+                  <path
+                    d="M97.8222 33.3786C97.8556 33.0836 97.7461 32.8291 97.5775 32.81C97.409 32.7909 97.2453 33.0145 97.2119 33.3094C97.1785 33.6043 97.288 33.8589 97.4565 33.878C97.625 33.8971 97.7887 33.6735 97.8222 33.3786Z"
+                    fill="#1E1C1C"
+                  />
+                  <path
+                    d="M95.3551 35.509L95.9693 34.8948V35.2786C95.8157 35.1251 95.739 34.9715 95.6622 34.818C95.5854 34.6644 95.5086 34.5109 95.5086 34.3573C95.4319 34.0502 95.3551 33.7431 95.2783 33.436C95.4319 33.7431 95.5086 34.0502 95.6622 34.2806C95.739 34.4341 95.8157 34.5109 95.8925 34.6644C95.9693 34.818 96.1228 34.8948 96.1996 34.8948L96.4299 34.9715L96.1996 35.2786L95.4319 35.6625H95.3551C95.3551 35.5857 95.3551 35.5857 95.3551 35.509Z"
+                    fill="#263238"
+                  />
+                  <path
+                    d="M99.2713 31.8237C99.2713 31.8237 98.6571 30.365 96.8145 30.5953"
+                    stroke="#263238"
+                    strokeWidth="0.5276"
+                    strokeMiterlimit="10"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M94.05 30.2881C94.05 30.2881 92.8216 29.2133 91.2861 30.2881"
+                    stroke="#263238"
+                    strokeWidth="0.5276"
+                    strokeMiterlimit="10"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M85.7585 33.743C85.7585 33.743 85.5282 32.5914 84.2998 33.052"
+                    stroke="#1E1C1C"
+                    strokeWidth="0.5276"
+                    strokeMiterlimit="10"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M89.5977 27.3709C89.5977 27.3709 97.2752 32.3612 101.114 31.5167C101.037 31.4399 96.7377 26.5263 89.5977 27.3709Z"
+                    fill="#263238"
+                  />
+                  <path
+                    d="M90.2881 25.8352C90.2881 25.8352 84.1461 32.745 84.53 36.5837C84.53 36.5837 90.0578 33.0521 90.2881 25.8352Z"
+                    fill="#263238"
+                  />
+                  <path
+                    d="M100.346 30.0581L88.9066 28.369L86.4498 38.7336C86.4498 38.7336 78.3884 34.4342 81.7665 25.4516C85.2214 16.6224 99.348 18.7721 100.346 30.0581Z"
+                    fill="#009FE3"
+                  />
+                  <g style={{ mixBlendMode: "multiply" }} opacity="0.15">
+                    <path
+                      d="M100.346 30.0581L88.9066 28.369L86.4498 38.7336C86.4498 38.7336 78.3884 34.4342 81.7665 25.4516C85.2214 16.6224 99.348 18.7721 100.346 30.0581Z"
+                      fill="#050305"
+                    />
+                  </g>
+                  <g style={{ mixBlendMode: "soft-light" }}>
+                    <path
+                      d="M84.6836 34.5876C85.2348 34.5876 85.6817 34.1408 85.6817 33.5896C85.6817 33.0383 85.2348 32.5915 84.6836 32.5915C84.1324 32.5915 83.6855 33.0383 83.6855 33.5896C83.6855 34.1408 84.1324 34.5876 84.6836 34.5876Z"
+                      fill="white"
+                    />
+                  </g>
+                  <path
+                    d="M115.547 43.1866C116.545 38.9639 117.39 35.3555 117.39 35.3555L113.704 34.511L111.938 40.1156C113.167 41.0369 114.395 42.1117 115.547 43.1866Z"
+                    fill="#FFBE9D"
+                  />
+                  <path
+                    d="M113.167 36.2C113.551 34.5877 114.165 32.7451 114.779 31.5935C115.163 30.8257 115.547 30.1348 115.701 30.2115C115.931 30.4419 115.547 32.3612 115.547 32.3612C115.547 32.3612 116.392 29.7509 116.468 30.6722C116.545 31.5167 116.161 33.129 116.161 33.129C116.161 33.129 117.236 30.749 117.159 31.6703C117.083 32.5916 116.622 34.0503 116.622 34.0503C116.622 34.0503 117.927 31.5167 117.697 32.8987C117.39 34.9716 117.39 35.2019 116.929 37.0445L113.167 36.2Z"
+                    fill="#FFBE9D"
+                  />
+                  <path
+                    d="M114.396 35.5857C114.396 36.1231 114.319 36.7373 114.166 37.2748L112.938 37.198C112.938 34.8947 113.014 34.6644 113.321 32.0541C113.552 30.2882 114.243 33.7431 114.243 33.7431C114.243 33.7431 114.473 34.2038 114.396 35.5857Z"
+                    fill="#FFBE9D"
+                  />
+                  <path
+                    d="M91.2094 45.6433L107.025 52.5531L111.401 38.5032L117.313 40.3458L115.086 56.5454C115.086 56.5454 113.781 64.1461 108.791 65.4513C103.801 66.7565 88.292 53.5511 88.292 53.5511L91.2094 45.6433Z"
+                    fill="#009FE3"
+                  />
+                  <g style={{ mixBlendMode: "multiply" }} opacity="0.15">
+                    <path
+                      d="M91.2094 45.6433L107.025 52.5531L111.401 38.5032L117.313 40.3458L115.086 56.5454C115.086 56.5454 113.781 64.1461 108.791 65.4513C103.801 66.7565 88.292 53.5511 88.292 53.5511L91.2094 45.6433Z"
+                      fill="#050305"
+                    />
+                  </g>
+                  <path
+                    d="M70.9414 72.6682C70.9414 72.6682 76.0853 46.1808 84.3003 43.5705L92.6687 45.4131L88.7532 72.9753L70.9414 72.6682Z"
+                    fill="#009FE3"
+                  />
+                  <path
+                    d="M30.1348 88.317L45.2047 102.382"
+                    stroke="#263238"
+                    strokeWidth="1.6378"
+                    strokeMiterlimit="10"
+                  />
+                  <path
+                    d="M133.436 62.9946C133.436 62.6108 132.822 59.1559 132.822 59.1559L124.837 62.9946V68.5992L132.822 70.5954L133.436 62.9946Z"
+                    fill="#009FE3"
+                  />
+                  <g style={{ mixBlendMode: "multiply" }} opacity="0.15">
+                    <path
+                      d="M133.436 62.9946C133.436 62.6108 132.822 59.1559 132.822 59.1559L124.837 62.9946V68.5992L132.822 70.5954L133.436 62.9946Z"
+                      fill="#050305"
+                    />
+                  </g>
+                  <path
+                    d="M136.073 64.8372C136.073 66.4201 135.705 67.8507 135.113 68.8839C134.52 69.9185 133.708 70.5453 132.822 70.5453C131.936 70.5453 131.124 69.9185 130.531 68.8839C129.938 67.8507 129.571 66.4201 129.571 64.8372C129.571 63.2542 129.938 61.8236 130.531 60.7904C131.124 59.7559 131.936 59.129 132.822 59.129C133.708 59.129 134.52 59.7559 135.113 60.7904C135.705 61.8236 136.073 63.2542 136.073 64.8372Z"
+                    fill="white"
+                    stroke="#050305"
+                    strokeWidth="0.1"
+                  />
+                  <path
+                    d="M53.2416 95.3497C53.2416 95.3497 43.0442 96.3753 47.2081 102.382L53.2416 95.3497Z"
+                    fill="#009FE3"
+                  />
+                  <g style={{ mixBlendMode: "multiply" }} opacity="0.15">
+                    <path
+                      d="M53.2416 95.3497C53.2416 95.3497 43.0442 96.3753 47.2081 102.382L53.2416 95.3497Z"
+                      fill="#050305"
+                    />
+                  </g>
+                  <path
+                    d="M42.6883 108.522C41.8438 104.223 46.2199 101.459 46.2199 101.459C53.4368 96.3916 53.2832 90.8638 53.2832 90.8638H92.4385L96.8147 93.2438C96.8147 93.2438 85.6823 94.2419 84.6842 106.679C84.1468 113.589 88.2159 116.583 91.8243 118.272C95.5095 120.038 109.175 120.269 114.934 118.042C117.851 116.891 119.77 114.203 119.617 111.132L118.388 93.0903C118.235 91.3245 118.388 89.4819 118.849 87.716C120.001 83.1863 122.304 81.9579 124.531 80.8063L118.158 66.2958C116.776 63.148 117.774 59.3093 120.692 57.4667C123.916 55.3937 125.912 58.0809 125.912 58.0809L128.6 79.8082C133.667 87.3322 135.97 103.992 135.97 103.992L128.6 107.908C128.6 107.908 127.371 111.056 126.066 114.357C123.302 121.42 116.546 126.257 108.945 126.334C108.868 126.334 108.868 126.334 108.792 126.334H76.0087L75.548 124.415H73.4751C70.7112 124.415 68.5615 122.188 68.5615 119.501H74.3964L71.7093 108.522H42.6883Z"
+                    fill="#009FE3"
+                  />
+                  <path
+                    d="M90.1345 90.8638C90.9022 90.8638 91.5932 91.1709 92.1306 91.7083C93.4358 92.9367 96.0462 95.0096 97.9655 93.3206C100.653 90.9405 98.2726 86.9482 94.2036 87.3321C90.1345 87.716 76.8524 87.716 71.9388 85.1056C67.0252 82.4185 65.1826 82.3417 63.6471 83.954C62.1116 85.6431 64.5684 90.3263 69.0981 90.8638H90.1345Z"
+                    fill="#009FE3"
+                  />
+                  <g style={{ mixBlendMode: "multiply" }} opacity="0.15">
+                    <path
+                      d="M90.1345 90.8638C90.9022 90.8638 91.5932 91.1709 92.1306 91.7083C93.4358 92.9367 96.0462 95.0096 97.9655 93.3206C100.653 90.9405 98.2726 86.9482 94.2036 87.3321C90.1345 87.716 76.8524 87.716 71.9388 85.1056C67.0252 82.4185 65.1826 82.3417 63.6471 83.954C62.1116 85.6431 64.5684 90.3263 69.0981 90.8638H90.1345Z"
+                      fill="#050305"
+                    />
+                  </g>
+                  <path
+                    d="M61.0377 140C71.1717 140 79.387 131.785 79.387 121.651C79.387 111.517 71.1717 103.301 61.0377 103.301C50.9037 103.301 42.6885 111.517 42.6885 121.651C42.6885 131.785 50.9037 140 61.0377 140Z"
+                    fill="#263238"
+                  />
+                  <path
+                    d="M61.038 133.32C67.483 133.32 72.7078 128.096 72.7078 121.651C72.7078 115.206 67.483 109.981 61.038 109.981C54.5929 109.981 49.3682 115.206 49.3682 121.651C49.3682 128.096 54.5929 133.32 61.038 133.32Z"
+                    fill="#C2D6E8"
+                  />
+                  <path
+                    d="M61.0373 125.029C62.903 125.029 64.4154 123.516 64.4154 121.651C64.4154 119.785 62.903 118.273 61.0373 118.273C59.1716 118.273 57.6592 119.785 57.6592 121.651C57.6592 123.516 59.1716 125.029 61.0373 125.029Z"
+                    fill="white"
+                  />
+                  <path
+                    d="M39.9238 121.651C39.9238 121.651 42.1503 107.063 58.3498 100.768C74.4726 94.549 80.6146 103.378 81.4591 104.99C82.9179 107.754 84.8372 116.046 79.463 121.574H39.9238V121.651Z"
+                    fill="#009FE3"
+                  />
+                  <g style={{ mixBlendMode: "multiply" }} opacity="0.15">
+                    <path
+                      d="M39.9238 121.651C39.9238 121.651 42.1503 107.063 58.3498 100.768C74.4726 94.549 80.6146 103.378 81.4591 104.99C82.9179 107.754 84.8372 116.046 79.463 121.574H39.9238V121.651Z"
+                      fill="#050305"
+                    />
+                  </g>
+                  <path
+                    d="M140.882 140C151.016 140 159.232 131.785 159.232 121.651C159.232 111.517 151.016 103.302 140.882 103.302C130.748 103.302 122.533 111.517 122.533 121.651C122.533 131.785 130.748 140 140.882 140Z"
+                    fill="#263238"
+                  />
+                  <path
+                    d="M140.883 133.321C147.328 133.321 152.553 128.096 152.553 121.651C152.553 115.206 147.328 109.981 140.883 109.981C134.438 109.981 129.213 115.206 129.213 121.651C129.213 128.096 134.438 133.321 140.883 133.321Z"
+                    fill="#C2D6E8"
+                  />
+                  <path
+                    d="M140.882 125.029C142.748 125.029 144.26 123.516 144.26 121.651C144.26 119.785 142.748 118.273 140.882 118.273C139.016 118.273 137.504 119.785 137.504 121.651C137.504 123.516 139.016 125.029 140.882 125.029Z"
+                    fill="white"
+                  />
+                  <path
+                    d="M140.833 99C129.209 99 119.85 107.498 120.001 117.986C121.359 118.063 122.869 117.833 124.756 116.838C126.039 116.149 127.171 115.23 128.228 114.235C132.983 109.488 136.833 106.426 145.211 106.426C150.495 106.426 155.326 108.187 158.949 111.096C159.477 111.556 160.232 110.943 159.93 110.331C156.684 103.593 149.363 99 140.833 99Z"
+                    fill="#009FE3"
+                  />
+                  <g style={{ mixBlendMode: "multiply" }} opacity="0.15">
+                    <path
+                      d="M140.833 99C129.209 99 119.85 107.498 120.001 117.986C121.359 118.063 122.869 117.833 124.756 116.838C126.039 116.149 127.171 115.23 128.228 114.235C132.983 109.488 136.833 106.426 145.211 106.426C150.495 106.426 155.326 108.187 158.949 111.096C159.477 111.556 160.232 110.943 159.93 110.331C156.684 103.593 149.363 99 140.833 99Z"
+                      fill="#050305"
+                    />
+                  </g>
+                  <path
+                    d="M124.071 61.3054L122.305 68.0616C122.151 68.7525 121.23 69.29 120.386 69.2132C119.618 69.1364 119.157 68.6758 119.311 68.0616L120.923 60.6912L124.071 61.3054Z"
+                    fill="#263238"
+                  />
+                  <path
+                    d="M121.153 59.77C121.997 59.6932 122.765 59.8468 123.533 60.1539C124.224 60.461 124.761 60.9984 124.224 61.8429C124.224 61.8429 124.992 62.5339 124.147 63.2249C124.147 63.2249 124.685 63.9926 123.84 64.7604C123.84 64.7604 124.531 65.6049 123.226 65.8352C121.921 66.0655 120.155 64.6068 118.85 65.1442L119.08 60.0003L121.153 59.77Z"
+                    fill="#FFBE9D"
+                  />
+                  <path
+                    d="M92.6705 45.413L105.953 57.006L119.926 59.3093L119.081 66.3726C119.081 66.3726 104.417 68.292 100.041 66.3726C96.586 64.9139 85.7607 54.7796 85.7607 54.7796L92.6705 45.413Z"
+                    fill="#009FE3"
+                  />
+                  <path
+                    d="M85.7598 54.7029L90.6734 59.6165"
+                    stroke="#263238"
+                    strokeWidth="0.8189"
+                    strokeMiterlimit="10"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M61.3124 60.5487H23.9307C22.8261 60.5487 21.9307 61.4441 21.9307 62.5487V88.9516C21.9307 90.0562 22.8261 90.9516 23.9307 90.9516H61.3124C62.417 90.9516 63.3124 90.0562 63.3124 88.9516V62.5487C63.3124 61.4441 62.417 60.5487 61.3124 60.5487Z"
+                    fill="#263238"
+                  />
+                  <path
+                    d="M15 139.075H141"
+                    stroke="#263238"
+                    strokeWidth="1.8327"
+                    strokeMiterlimit="10"
+                    strokeLinecap="round"
+                  />
+                </svg>
+
+                <h4 className="font-size-22 font-weight-700 text-color-secondary pt-20">
+                  Service Request Sent
+                </h4>
+                <p className="font-size-16 font-weight-500 mb-30">
+                  Your Request has been
+                  <br />
+                  Sent Successfully
+                </p>
+              </div>
+              <Link
+                to="/my-service"
+                className="btn btn-primary btn-block btn-lg"
+              >
+                Go To My Service
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Checkout;
